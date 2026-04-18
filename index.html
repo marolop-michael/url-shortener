@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener - TinyURL</title>
+    <style>
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            display: none;
+        }
+
+        .result.show {
+            display: block !important;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result p {
+            margin-bottom: 10px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .result a {
+            color: #667eea;
+            text-decoration: none;
+            word-break: break-all;
+            font-weight: 600;
+        }
+
+        .result a:hover {
+            text-decoration: underline;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            margin-top: 10px;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        .error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+
+        .error p {
+            color: #721c24;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 10px;
+            display: none;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .loading.show {
+            display: block !important;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-size: 14px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            visibility: visible;
+            bottom: 50px;
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 URL Shortener</h1>
+        <p class="subtitle">Powered by TinyURL</p>
+
+        <!-- Long URL Input -->
+        <div class="input-group">
+            <label for="longUrl">Paste URL Panjang:</label>
+            <input 
+                type="url" 
+                id="longUrl" 
+                placeholder="https://example.com/your-long-url-here"
+                autocomplete="off"
+                value=""
+            >
+        </div>
+
+        <!-- Shorten Button -->
+        <button id="shortenBtn" onclick="shortenUrl()">
+            Shorten URL
+        </button>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loading">
+            ⏳ Memproses...
+        </div>
+
+        <!-- Result Section -->
+        <div class="result" id="result">
+            <p><strong>✅ URL Pendek:</strong></p>
+            <p><a id="shortUrl" href="#" target="_blank"></a></p>
+            <button class="copy-btn" onclick="copyUrl()">
+                📋 Copy Clean URL
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ============================================
+        // 🚀 API CONFIGURATION
+        // ============================================
+        const TINYURL_API = 'https://tinyurl.com/api-create.php?url=';
+
+        // ============================================
+        // 🔍 FUNGSI VALIDASI URL
+        // ============================================
+        function isValidUrl(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        // ============================================
+        // 🚀 FUNGSI SHORTEN URL
+        // ============================================
+        async function shortenUrl() {
+            const longUrlInput = document.getElementById('longUrl');
+            const resultDiv = document.getElementById('result');
+            const loadingDiv = document.getElementById('loading');
+            const shortenBtn = document.getElementById('shortenBtn');
+            
+            const longUrl = longUrlInput.value.trim();
+            
+            // Reset result
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'none';
+            
+            // Validasi
+            if (!longUrl) {
+                showError('Mohon masukkan URL!');
+                return;
+            }
+            
+            if (!isValidUrl(longUrl)) {
+                showError('Format URL tidak valid! Gunakan http:// atau https://');
+                return;
+            }
+            
+            // Build API URL
+            const apiUrl = TINYURL_API + encodeURIComponent(longUrl);
+            
+            // Send request
+            loadingDiv.className = 'loading show';
+            shortenBtn.disabled = true;
+            
+            try {
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error('Gagal memproses URL');
+                }
+                
+                const shortUrl = await response.text();
+                
+                if (!shortUrl || shortUrl.startsWith('Error')) {
+                    throw new Error('Gagal membuat URL pendek');
+                }
+                
+                // Tampilkan hasil
+                document.getElementById('shortUrl').href = shortUrl;
+                document.getElementById('shortUrl').textContent = shortUrl;
+                
+                resultDiv.className = 'result show';
+                showToast('✅ URL berhasil di-shorten!', 'success');
+                
+            } catch (error) {
+                showError('❌ Gagal: ' + error.message);
+                showToast('❌ ' + error.message, 'error');
+            } finally {
+                loadingDiv.className = 'loading';
+                shortenBtn.disabled = false;
+                longUrlInput.value = '';
+                longUrlInput.focus();
+            }
+        }
+
+        // ============================================
+        // 📋 FUNGSI COPY - CLEAN OUTPUT
+        // ============================================
+        function copyUrl() {
+            const shortUrlElement = document.getElementById('shortUrl');
+            
+            const cleanUrl = shortUrlElement
+                .textContent
+                .trim()
+                .replace(/\n/g, '')
+                .replace(/\r/g, '')
+                .replace(/\t/g, '')
+                .replace(/\s+/g, ' ');
+            
+            navigator.clipboard.writeText(cleanUrl)
+                .then(() => {
+                    showToast('✅ URL copied!', 'success');
+                })
+                .catch(() => {
+                    fallbackCopy(cleanUrl);
+                });
+        }
+
+        // ============================================
+        // 🔄 FALLBACK COPY
+        // ============================================
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast('✅ URL copied!', 'success');
+            } catch (err) {
+                showToast('❌ Failed to copy', 'error');
+            }
+            
+            document.body.removeChild(textarea);
+        }
+
+        // ============================================
+        // ❌ FUNGSI SHOW ERROR
+        // ============================================
+        function showError(message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<p>${message}</p>`;
+            resultDiv.className = 'result error show';
+            resultDiv.style.display = 'block';
+        }
+
+        // ============================================
+        // 🔔 FUNGSI TOAST NOTIFICATION
+        // ============================================
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+
+        // ============================================
+        // ⌨️ ENTER KEY SUPPORT
+        // ============================================
+        document.getElementById('longUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                shortenUrl();
+            }
+        });
+    </script>
+</body>
+</html>
